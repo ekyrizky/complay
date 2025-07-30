@@ -11,12 +11,14 @@ import androidx.compose.ui.Modifier
 fun ComplayTheme(
     colors: ComplayColors = ComplayColors.defaultColors(),
     typography: ComplayTypography = ComplayTypography.defaultTypography(),
+    icons: ComplayIcons = ComplayIcons.defaultIcons(),
     content: @Composable () -> Unit
 ) {
 
     CompositionLocalProvider(
         LocalColors provides colors,
-        LocalTypography provides typography
+        LocalTypography provides typography,
+        LocalIcons provides icons
     ) {
         Box(
             modifier = Modifier.background(colors.background)
@@ -36,4 +38,9 @@ object ComplayTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalTypography.current
+
+    val icons: ComplayIcons
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalIcons.current
 }
