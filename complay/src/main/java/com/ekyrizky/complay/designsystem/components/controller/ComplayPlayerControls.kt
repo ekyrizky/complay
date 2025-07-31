@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ekyrizky.complay.designsystem.components.button.ComplayIconButton
 import com.ekyrizky.complay.designsystem.theme.ComplayTheme
 import com.ekyrizky.complay.designsystem.utils.PlaybackState
 import com.ekyrizky.complay.designsystem.utils.PlayerControllerActions
@@ -32,10 +33,12 @@ fun ComplayPlayerControls(
     ) {
         // Left Button
         when (type) {
-            PlayerControllerType.MINIMAL -> { /* No left button */ }
+            PlayerControllerType.MINIMAL -> { /* No left button */
+            }
+
             PlayerControllerType.STANDARD -> {
                 val standardActions = actions as PlayerControllerActions.StandardActions
-                PlayerControlButton(
+                ComplayIconButton(
                     icon = ComplayTheme.icons.rewind10,
                     contentDescription = "Rewind 10 seconds",
                     onClick = standardActions.onRewind,
@@ -44,9 +47,10 @@ fun ComplayPlayerControls(
                     buttonSize = buttonSize
                 )
             }
+
             PlayerControllerType.SKIP -> {
                 val skipActions = actions as PlayerControllerActions.SkipActions
-                PlayerControlButton(
+                ComplayIconButton(
                     icon = ComplayTheme.icons.skipPrevious,
                     contentDescription = "Previous Track",
                     onClick = skipActions.onSkipPrevious,
@@ -64,7 +68,7 @@ fun ComplayPlayerControls(
             is PlayerControllerActions.SkipActions -> actions.onPlayPause
         }
 
-        PlayerControlButton(
+        ComplayIconButton(
             icon = if (state == PlaybackState.PLAY) ComplayTheme.icons.pause else ComplayTheme.icons.play,
             contentDescription = if (state == PlaybackState.PLAY) "Pause" else "Play",
             onClick = { onPlayPause(if (state == PlaybackState.PLAY) PlaybackState.PAUSE else PlaybackState.PLAY) },
@@ -75,10 +79,12 @@ fun ComplayPlayerControls(
 
         // Right Button
         when (type) {
-            PlayerControllerType.MINIMAL -> { /* No right button */ }
+            PlayerControllerType.MINIMAL -> { /* No right button */
+            }
+
             PlayerControllerType.STANDARD -> {
                 val standardActions = actions as PlayerControllerActions.StandardActions
-                PlayerControlButton(
+                ComplayIconButton(
                     icon = ComplayTheme.icons.forward10,
                     contentDescription = "Forward 10 seconds",
                     onClick = standardActions.onForward,
@@ -87,9 +93,10 @@ fun ComplayPlayerControls(
                     buttonSize = buttonSize
                 )
             }
+
             PlayerControllerType.SKIP -> {
                 val skipActions = actions as PlayerControllerActions.SkipActions
-                PlayerControlButton(
+                ComplayIconButton(
                     icon = ComplayTheme.icons.skipNext,
                     contentDescription = "Next Track",
                     onClick = skipActions.onSkipNext,

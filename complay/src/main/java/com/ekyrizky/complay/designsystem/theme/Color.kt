@@ -24,7 +24,7 @@ data class ComplayColors(
             onSurface = Color(0xFF000000),
             onSurfaceVariant = Color(0xFF8E8E93),
 
-            primary = Color(0xFFFF0000),
+            primary = Color(0xFF07E3D0),
             onPrimary = Color(0xFFFFFFFF),
 
             error = Color(0xFFFF453A)
