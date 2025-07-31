@@ -41,7 +41,7 @@ fun ComplayIndicator(
 
 @Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)
 @Composable
-fun LoadingIndicatorPreview() {
+private fun ComplayIndicatorPreview() {
     ComplayTheme {
         Column(
             modifier = Modifier
