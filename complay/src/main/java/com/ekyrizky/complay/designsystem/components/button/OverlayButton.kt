@@ -51,7 +51,7 @@ fun OverlayButton(
 
 @Preview(name = "Overlay Button", showBackground = true)
 @Composable
-fun OverlayButtonPreview() {
+private fun OverlayButtonPreview() {
     ComplayTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             OverlayButton(
