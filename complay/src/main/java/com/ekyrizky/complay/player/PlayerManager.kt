@@ -3,16 +3,19 @@ package com.ekyrizky.complay.player
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import androidx.annotation.OptIn
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.TrackGroupArray
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.ekyrizky.complay.model.PlaybackState
 import com.ekyrizky.complay.model.PlayerAnalytics
 import com.ekyrizky.complay.model.PlayerConfig
@@ -36,6 +39,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+@UnstableApi
 class PlayerManager private constructor(
     private val context: Context,
     private val config: PlayerConfig,
@@ -59,6 +63,7 @@ class PlayerManager private constructor(
     }
 
     private var exoPlayer: ExoPlayer? = null
+    private var trackSelector: DefaultTrackSelector? = null
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _playerState = MutableStateFlow(PlayerState())
@@ -85,12 +90,13 @@ class PlayerManager private constructor(
     private var positionUpdateJob: Job? = null
     private var currentVideo: Video? = null
 
-    private val player: ExoPlayer by lazy {
-        createExoPlayer()
+    private fun getOrCreatePlayer(): ExoPlayer {
+        return exoPlayer ?: createExoPlayer()
     }
 
-    @OptIn(UnstableApi::class)
     fun createExoPlayer(): ExoPlayer {
+        if (exoPlayer != null) return exoPlayer!!
+
         val loadControl = config.bufferConfiguration?.let { bufferConfig ->
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
@@ -102,7 +108,11 @@ class PlayerManager private constructor(
                 .build()
         }
 
+        val selector = DefaultTrackSelector(context)
+        trackSelector = selector
+
         return ExoPlayer.Builder(context)
+            .setTrackSelector(selector)
             .apply {
                 loadControl?.let { setLoadControl(it) }
             }
@@ -124,15 +134,15 @@ class PlayerManager private constructor(
         }
     }
 
-
     fun prepareVideo(video: Video) {
-        Log.d("ViPlusPlayerManager", "Preparing video: ${video.url}")
+        Log.d(TAG, "Preparing video: ${video.url}")
 
         try {
             updateState { currentState -> currentState.copy(isLoading = true, error = null) }
             currentVideo = video
 
             val mediaItem = createMediaItem(video)
+            val player = getOrCreatePlayer()
             player.apply {
                 setMediaItem(mediaItem)
                 prepare()
@@ -171,23 +181,56 @@ class PlayerManager private constructor(
     }
 
     fun play() {
-        player.play()
+        exoPlayer?.play()
     }
 
     fun pause() {
-        player.pause()
+        exoPlayer?.pause()
     }
 
     fun seekTo(position: Long) {
-        player.seekTo(position.coerceAtLeast(0))
+        exoPlayer?.seekTo(position.coerceAtLeast(0))
     }
 
     fun setVolume(volume: Float) {
-        player.volume = volume.coerceIn(0f, 1f)
+        exoPlayer?.volume = volume.coerceIn(0f, 1f)
     }
 
     fun getCurrentPosition(): Long = exoPlayer?.currentPosition ?: 0L
     fun getDuration(): Long = exoPlayer?.duration?.takeIf { it != C.TIME_UNSET } ?: 0L
+
+    fun getCurrentTracks(): Tracks? {
+        return exoPlayer?.currentTracks
+    }
+
+    fun getTrackGroups(): TrackGroupArray? {
+        return exoPlayer?.currentTrackGroups
+    }
+
+    fun selectTrack(trackType: Int, groupIndex: Int, trackIndex: Int) {
+        val selector = trackSelector ?: return
+        val player = exoPlayer ?: return
+        val groups = player.currentTrackGroups
+        if (groupIndex < 0 || groupIndex >= groups.length) return
+        val group = groups.get(groupIndex)
+        if (trackIndex < 0 || trackIndex >= group.length) return
+        val override = TrackSelectionOverride(group, listOf(trackIndex))
+        val params = selector.parameters
+            .buildUpon()
+            .clearOverridesOfType(trackType)
+            .addOverride(override)
+            .build()
+        selector.parameters = params
+    }
+
+    fun clearTrackSelection(trackType: Int) {
+        val selector = trackSelector ?: return
+        val params = selector.parameters
+            .buildUpon()
+            .clearOverridesOfType(trackType)
+            .build()
+        selector.parameters = params
+    }
 
     override fun onPause(owner: LifecycleOwner) {
         if (_playerState.value.isPlaying) {
@@ -226,7 +269,7 @@ class PlayerManager private constructor(
 
         stopPositionUpdates()
         positionUpdateJob = coroutineScope.launch {
-            while (isActive) {
+            while (isActive && exoPlayer != null) {
                 val position = getCurrentPosition()
                 updateState { currentState -> currentState.copy(currentPosition = position) }
                 delay(config.positionUpdateInterval)
