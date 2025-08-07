@@ -2,6 +2,7 @@ package com.ekyrizky.complay.player
 
 import android.content.Context
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -13,6 +14,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -94,6 +96,11 @@ class PlayerManager private constructor(
         return exoPlayer ?: createExoPlayer()
     }
 
+    private val renderersFactory: DefaultRenderersFactory =
+        DefaultRenderersFactory(context).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+
+    private var wakeLock: PowerManager.WakeLock? = null
+
     fun createExoPlayer(): ExoPlayer {
         if (exoPlayer != null) return exoPlayer!!
 
@@ -113,12 +120,14 @@ class PlayerManager private constructor(
 
         return ExoPlayer.Builder(context)
             .setTrackSelector(selector)
+            .setRenderersFactory(renderersFactory)
             .apply {
                 loadControl?.let { setLoadControl(it) }
             }
             .build()
             .also { player ->
                 player.addListener(playerListener)
+                player.setWakeMode(C.WAKE_MODE_LOCAL)
                 exoPlayer = player
             }
     }
@@ -246,6 +255,7 @@ class PlayerManager private constructor(
         Log.d(TAG, "Releasing player")
         coroutineScope.cancel()
 
+        releaseWakeLock()
         stopPositionUpdates()
 
         exoPlayer?.let { player ->
@@ -288,13 +298,29 @@ class PlayerManager private constructor(
         analytics?.onError(error)
     }
 
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+
+        wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager).run {
+            newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Complay:WakeLock")
+        }
+        wakeLock?.acquire()
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.release()
+        wakeLock = null
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateState { currentState -> currentState.copy(isPlaying = isPlaying) }
 
             if (isPlaying) {
+                acquireWakeLock()
                 startPositionUpdates()
             } else {
+                releaseWakeLock()
                 stopPositionUpdates()
             }
         }
