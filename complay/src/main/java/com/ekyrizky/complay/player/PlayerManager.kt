@@ -3,13 +3,15 @@ package com.ekyrizky.complay.player
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
+import androidx.annotation.OptIn
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import com.ekyrizky.complay.model.PlaybackState
 import com.ekyrizky.complay.model.PlayerAnalytics
@@ -21,6 +23,7 @@ import com.ekyrizky.complay.model.Video
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -36,7 +40,7 @@ class PlayerManager private constructor(
     private val context: Context,
     private val config: PlayerConfig,
     private val analytics: PlayerAnalytics? = null
-) : LifecycleObserver {
+) : DefaultLifecycleObserver {
 
     companion object {
         private const val TAG = "Complay Player Manager"
@@ -55,19 +59,28 @@ class PlayerManager private constructor(
     }
 
     private var exoPlayer: ExoPlayer? = null
-    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
 
-    val isPlaying: StateFlow<Boolean> = playerState.map { it.isPlaying }
-        .stateIn(coroutineScope, SharingStarted.WhileSubscribed(), false)
+    val isPlaying: StateFlow<Boolean> = _playerState.map { it.isPlaying }.stateIn(
+        scope = coroutineScope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = false
+    )
 
-    val currentPosition: StateFlow<Long> = playerState.map { it.currentPosition }
-        .stateIn(coroutineScope, SharingStarted.WhileSubscribed(), 0L)
+    val currentPosition: StateFlow<Long> = playerState.map { it.currentPosition }.stateIn(
+        scope = coroutineScope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = 0L
+    )
 
-    val duration: StateFlow<Long> = playerState.map { it.duration }
-        .stateIn(coroutineScope, SharingStarted.WhileSubscribed(), 0L)
+    val duration: StateFlow<Long> = _playerState.map { it.duration }.stateIn(
+        scope = coroutineScope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = 0L
+    )
 
     private var positionUpdateJob: Job? = null
     private var currentVideo: Video? = null
@@ -76,16 +89,28 @@ class PlayerManager private constructor(
         createExoPlayer()
     }
 
+    @OptIn(UnstableApi::class)
     fun createExoPlayer(): ExoPlayer {
+        val loadControl = config.bufferConfiguration?.let { bufferConfig ->
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    bufferConfig.minBufferMs,
+                    bufferConfig.maxBufferMs,
+                    bufferConfig.bufferForPlaybackMs,
+                    bufferConfig.bufferForPlaybackAfterRebufferMs
+                )
+                .build()
+        }
 
-        exoPlayer = ExoPlayer.Builder(context)
+        return ExoPlayer.Builder(context)
+            .apply {
+                loadControl?.let { setLoadControl(it) }
+            }
             .build()
             .also { player ->
                 player.addListener(playerListener)
                 exoPlayer = player
             }
-
-        return exoPlayer!!
     }
 
     fun handleEvent(event: PlayerEvent) {
@@ -104,7 +129,7 @@ class PlayerManager private constructor(
         Log.d("ViPlusPlayerManager", "Preparing video: ${video.url}")
 
         try {
-            updateState { copy(isLoading = true, error = null) }
+            updateState { currentState -> currentState.copy(isLoading = true, error = null) }
             currentVideo = video
 
             val mediaItem = createMediaItem(video)
@@ -134,7 +159,7 @@ class PlayerManager private constructor(
             )
         }
 
-        if (video.isDrmProtected && !video.licenseUrl.isNullOrEmpty()) {
+        if (video.isDrmProtected && video.licenseUrl.isNotEmpty()) {
             val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                 .setLicenseUri(video.licenseUrl)
                 .setMultiSession(true)
@@ -164,15 +189,13 @@ class PlayerManager private constructor(
     fun getCurrentPosition(): Long = exoPlayer?.currentPosition ?: 0L
     fun getDuration(): Long = exoPlayer?.duration?.takeIf { it != C.TIME_UNSET } ?: 0L
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-    fun onAppPaused() {
+    override fun onPause(owner: LifecycleOwner) {
         if (_playerState.value.isPlaying) {
             pause()
         }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-    fun onAppDestroyed() {
+    override fun onDestroy(owner: LifecycleOwner) {
         release()
     }
 
@@ -194,8 +217,8 @@ class PlayerManager private constructor(
         currentVideo = null
     }
 
-    private fun updateState(update: PlayerState.() -> PlayerState) {
-        _playerState.value = update
+    private fun updateState(update: (PlayerState) -> PlayerState) {
+        _playerState.update(update)
     }
 
     private fun startPositionUpdates() {
@@ -205,7 +228,7 @@ class PlayerManager private constructor(
         positionUpdateJob = coroutineScope.launch {
             while (isActive) {
                 val position = getCurrentPosition()
-                updateState { copy(currentPosition = position) }
+                updateState { currentState -> currentState.copy(currentPosition = position) }
                 delay(config.positionUpdateInterval)
             }
         }
@@ -218,13 +241,13 @@ class PlayerManager private constructor(
 
     private fun handleError(error: PlayerError) {
         Log.e(TAG, "Player error: ${error.message}", error.cause)
-        updateState { copy(error = error, isLoading = false) }
+        updateState { currentState -> currentState.copy(error = error, isLoading = false) }
         analytics?.onError(error)
     }
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            updateState { copy(isPlaying = isPlaying) }
+            updateState { currentState -> currentState.copy(isPlaying = isPlaying) }
 
             if (isPlaying) {
                 startPositionUpdates()
@@ -247,8 +270,8 @@ class PlayerManager private constructor(
             val isLoading = playbackState == Player.STATE_BUFFERING
             val duration = if (playbackState == Player.STATE_READY) getDuration() else _playerState.value.duration
 
-            updateState {
-                copy(
+            updateState { currentState ->
+                currentState.copy(
                     playbackState = state,
                     isLoading = isLoading,
                     duration = duration,
