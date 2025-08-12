@@ -19,7 +19,7 @@ internal fun ComplayPlayerView(
     video: Video,
     modifier: Modifier = Modifier,
     playerManager: PlayerManager,
-    onPlayerReady: (PlayerManager) -> Unit
+    onPlayerReady: (PlayerManager) -> Unit = {}
 ) {
 
     val exoPlayer = remember { playerManager.createExoPlayer() }

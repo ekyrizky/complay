@@ -23,7 +23,7 @@ fun ComplayPlayerControls(
     state: PlaybackState,
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
-    iconSize: Dp = 24.dp,
+    iconSize: Dp = 32.dp,
     buttonSize: Dp = 48.dp
 ) {
     Row(
@@ -71,7 +71,7 @@ fun ComplayPlayerControls(
         ComplayIconButton(
             icon = if (state == PlaybackState.PLAY) ComplayTheme.icons.pause else ComplayTheme.icons.play,
             contentDescription = if (state == PlaybackState.PLAY) "Pause" else "Play",
-            onClick = { onPlayPause(if (state == PlaybackState.PLAY) PlaybackState.PAUSE else PlaybackState.PLAY) },
+            onClick = onPlayPause,
             tint = tint,
             iconSize = iconSize,
             buttonSize = buttonSize

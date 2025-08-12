@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.ekyrizky.complay.designsystem.theme.ComplayTheme
 import com.ekyrizky.complay.model.Video
+import com.ekyrizky.complay.ui.horizontal.ComplayHScreen
 
 class ComplayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

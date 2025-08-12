@@ -10,17 +10,17 @@ enum class PlayerControllerType {
 
 sealed class PlayerControllerActions {
     data class MinimalActions(
-        val onPlayPause: (PlaybackState) -> Unit
+        val onPlayPause: () -> Unit
     ) : PlayerControllerActions()
 
     data class StandardActions(
-        val onPlayPause: (PlaybackState) -> Unit,
+        val onPlayPause: () -> Unit,
         val onForward: () -> Unit,
         val onRewind: () -> Unit
     ) : PlayerControllerActions()
 
     data class SkipActions(
-        val onPlayPause: (PlaybackState) -> Unit,
+        val onPlayPause: () -> Unit,
         val onSkipNext: () -> Unit,
         val onSkipPrevious: () -> Unit
     ) : PlayerControllerActions()
