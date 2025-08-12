@@ -4,11 +4,9 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
@@ -20,23 +18,16 @@ import com.ekyrizky.complay.player.PlayerManager
 internal fun ComplayPlayerView(
     video: Video,
     modifier: Modifier = Modifier,
+    playerManager: PlayerManager,
+    onPlayerReady: (PlayerManager) -> Unit
 ) {
 
-    val context = LocalContext.current
-    val playerManager = remember(video.id) { PlayerManager.create(context) }
-    val exoPlayer = remember(video.id) { playerManager.createExoPlayer() }
+    val exoPlayer = remember { playerManager.createExoPlayer() }
 
     LaunchedEffect(video.id) {
         Log.d("ComplayPlayerView", "Preparing video: ${video.id}")
         playerManager.prepareVideo(video)
-        playerManager.play()
-    }
-
-    DisposableEffect(video.id) {
-        onDispose {
-            Log.d("ComplayPlayerView", "Disposing video: ${video.id}")
-            playerManager.release()
-        }
+        onPlayerReady(playerManager)
     }
 
     AndroidView(

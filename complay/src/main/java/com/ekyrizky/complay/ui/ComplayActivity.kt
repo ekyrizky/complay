@@ -33,7 +33,7 @@ class ComplayActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(innerPadding)
                     ) {
-                        ComplayPlayerView(sampleVideo)
+                        ComplayHScreen(sampleVideo)
                     }
                 }
             }
