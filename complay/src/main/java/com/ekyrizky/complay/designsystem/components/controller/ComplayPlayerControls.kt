@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ekyrizky.complay.designsystem.components.button.ComplayIconButton
 import com.ekyrizky.complay.designsystem.theme.ComplayTheme
-import com.ekyrizky.complay.designsystem.utils.PlaybackState
 import com.ekyrizky.complay.designsystem.utils.PlayerControllerActions
 import com.ekyrizky.complay.designsystem.utils.PlayerControllerType
 
@@ -20,7 +19,7 @@ import com.ekyrizky.complay.designsystem.utils.PlayerControllerType
 fun ComplayPlayerControls(
     type: PlayerControllerType,
     actions: PlayerControllerActions,
-    state: PlaybackState,
+    isPlaying: Boolean,
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
     iconSize: Dp = 32.dp,
@@ -41,7 +40,7 @@ fun ComplayPlayerControls(
                 ComplayIconButton(
                     icon = ComplayTheme.icons.rewind10,
                     contentDescription = "Rewind 10 seconds",
-                    onClick = standardActions.onRewind,
+                    onClick = standardActions.onBackward,
                     tint = tint,
                     iconSize = iconSize,
                     buttonSize = buttonSize
@@ -62,16 +61,21 @@ fun ComplayPlayerControls(
         }
 
         // Play/Pause Button (common to all)
-        val onPlayPause = when (actions) {
-            is PlayerControllerActions.MinimalActions -> actions.onPlayPause
-            is PlayerControllerActions.StandardActions -> actions.onPlayPause
-            is PlayerControllerActions.SkipActions -> actions.onPlayPause
+        val onPlay = when (actions) {
+            is PlayerControllerActions.MinimalActions -> actions.onPlay
+            is PlayerControllerActions.StandardActions -> actions.onPlay
+            is PlayerControllerActions.SkipActions -> actions.onPlay
+        }
+        val onPause = when (actions) {
+            is PlayerControllerActions.MinimalActions -> actions.onPause
+            is PlayerControllerActions.StandardActions -> actions.onPause
+            is PlayerControllerActions.SkipActions -> actions.onPause
         }
 
         ComplayIconButton(
-            icon = if (state == PlaybackState.PLAY) ComplayTheme.icons.pause else ComplayTheme.icons.play,
-            contentDescription = if (state == PlaybackState.PLAY) "Pause" else "Play",
-            onClick = onPlayPause,
+            icon = if (isPlaying) ComplayTheme.icons.pause else ComplayTheme.icons.play,
+            contentDescription = if (isPlaying) "Pause" else "Play",
+            onClick = if (isPlaying) onPause else onPlay,
             tint = tint,
             iconSize = iconSize,
             buttonSize = buttonSize
@@ -116,9 +120,10 @@ private fun MinimalPreview() {
         ComplayPlayerControls(
             type = PlayerControllerType.MINIMAL,
             actions = PlayerControllerActions.MinimalActions(
-                onPlayPause = {}
+                onPlay = {},
+                onPause = {}
             ),
-            state = PlaybackState.PLAY,
+            isPlaying = true,
             modifier = Modifier.width(100.dp)
         )
     }
@@ -131,11 +136,12 @@ private fun StandardPreview() {
         ComplayPlayerControls(
             type = PlayerControllerType.STANDARD,
             actions = PlayerControllerActions.StandardActions(
-                onPlayPause = {},
+                onPlay = {},
+                onPause = {},
                 onForward = {},
-                onRewind = {}
+                onBackward = {}
             ),
-            state = PlaybackState.PAUSE,
+            isPlaying = false,
             modifier = Modifier.width(250.dp)
         )
     }
@@ -148,11 +154,12 @@ private fun SkipPreview() {
         ComplayPlayerControls(
             type = PlayerControllerType.SKIP,
             actions = PlayerControllerActions.SkipActions(
-                onPlayPause = {},
+                onPlay = {},
+                onPause = {},
                 onSkipNext = {},
                 onSkipPrevious = {}
             ),
-            state = PlaybackState.PLAY,
+            isPlaying = true,
             modifier = Modifier.width(250.dp)
         )
     }

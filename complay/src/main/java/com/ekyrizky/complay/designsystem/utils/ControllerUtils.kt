@@ -1,7 +1,5 @@
 package com.ekyrizky.complay.designsystem.utils
 
-enum class PlaybackState { PLAY, PAUSE }
-
 enum class PlayerControllerType {
     MINIMAL,
     STANDARD,
@@ -10,17 +8,20 @@ enum class PlayerControllerType {
 
 sealed class PlayerControllerActions {
     data class MinimalActions(
-        val onPlayPause: () -> Unit
+        val onPlay: () -> Unit,
+        val onPause: () -> Unit
     ) : PlayerControllerActions()
 
     data class StandardActions(
-        val onPlayPause: () -> Unit,
+        val onPlay: () -> Unit,
+        val onPause: () -> Unit,
         val onForward: () -> Unit,
-        val onRewind: () -> Unit
+        val onBackward: () -> Unit
     ) : PlayerControllerActions()
 
     data class SkipActions(
-        val onPlayPause: () -> Unit,
+        val onPlay: () -> Unit,
+        val onPause: () -> Unit,
         val onSkipNext: () -> Unit,
         val onSkipPrevious: () -> Unit
     ) : PlayerControllerActions()

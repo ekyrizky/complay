@@ -31,6 +31,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import com.ekyrizky.complay.model.PlaybackState
+import com.ekyrizky.complay.model.PlayerEvent
 import com.ekyrizky.complay.model.Video
 import com.ekyrizky.complay.player.PlayerManager
 import com.ekyrizky.complay.ui.ComplayPlayerView
@@ -58,9 +59,9 @@ internal fun ComplayHScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> playerManager.pause()
-                Lifecycle.Event.ON_RESUME -> playerManager.play()
-                Lifecycle.Event.ON_DESTROY -> playerManager.release()
+                Lifecycle.Event.ON_PAUSE -> playerManager.onEvent(PlayerEvent.Pause)
+                Lifecycle.Event.ON_RESUME -> playerManager.onEvent(PlayerEvent.Play)
+                Lifecycle.Event.ON_DESTROY -> playerManager.onEvent(PlayerEvent.Release)
                 else -> {}
             }
         }
@@ -68,7 +69,7 @@ internal fun ComplayHScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            playerManager.release()
+            playerManager.onEvent(PlayerEvent.Release)
         }
     }
 
@@ -101,18 +102,18 @@ internal fun ComplayHScreen(
         ComplayPlayerView(
             video = video,
             playerManager = playerManager,
-            onPlayerReady = { player -> player.play() }
+            onPlayerReady = { player -> player.onEvent(PlayerEvent.Play) }
         )
 
         AnimatedVisibility(
-            visible = overlayVisible,
+            visible = overlayVisible && playerState.playbackState != PlaybackState.BUFFERING && !playerState.isLoading,
             enter = fadeIn(animationSpec = tween(200)),
             exit = fadeOut(animationSpec = tween(200))
         ) {
             ComplayHOverlay(
                 playerManager = playerManager,
-                onPlayPause = { isPlaying ->
-                    if (isPlaying) playerManager.pause() else playerManager.play()
+                onEvent = {
+                    playerManager.onEvent(it)
                     showOverlayWithTimeout()
                 },
                 modifier = Modifier.fillMaxSize(),

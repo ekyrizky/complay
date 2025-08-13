@@ -14,17 +14,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.media3.common.util.UnstableApi
 import com.ekyrizky.complay.designsystem.components.controller.ComplayPlayerControls
-import com.ekyrizky.complay.designsystem.utils.PlaybackState
 import com.ekyrizky.complay.designsystem.utils.PlayerControllerActions
 import com.ekyrizky.complay.designsystem.utils.PlayerControllerType
+import com.ekyrizky.complay.model.PlayerEvent
 import com.ekyrizky.complay.player.PlayerManager
 
 @OptIn(UnstableApi::class)
 @Composable
 internal fun ComplayHOverlay(
     playerManager: PlayerManager?,
-    onPlayPause: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    onEvent: (PlayerEvent) -> Unit,
+    modifier: Modifier = Modifier,
+    controllerType: PlayerControllerType = PlayerControllerType.STANDARD,
 ) {
 
     val isPlaying by playerManager?.isPlaying?.collectAsState(initial = false)
@@ -36,14 +37,34 @@ internal fun ComplayHOverlay(
             .background(Color.Black.copy(alpha = 0.3f))
     ) {
         if (playerManager != null) {
+            val actions = when (controllerType) {
+                PlayerControllerType.MINIMAL -> {
+                    PlayerControllerActions.MinimalActions(
+                        onPlay = { onEvent(PlayerEvent.Play) },
+                        onPause = { onEvent(PlayerEvent.Pause) }
+                    )
+                }
+
+                PlayerControllerType.STANDARD -> PlayerControllerActions.StandardActions(
+                    onPlay = { onEvent(PlayerEvent.Play) },
+                    onPause = { onEvent(PlayerEvent.Pause) },
+                    onForward = { onEvent(PlayerEvent.SeekForward(10)) },
+                    onBackward = { onEvent(PlayerEvent.SeekBackward(10)) }
+                )
+
+                PlayerControllerType.SKIP -> PlayerControllerActions.SkipActions(
+                    onPlay = { onEvent(PlayerEvent.Play) },
+                    onPause = { onEvent(PlayerEvent.Pause) },
+                    onSkipNext = { },
+                    onSkipPrevious = { }
+                )
+            }
+
             ComplayPlayerControls(
-                type = PlayerControllerType.MINIMAL,
-                actions = PlayerControllerActions.MinimalActions(
-                    onPlayPause = { onPlayPause(isPlaying) }
-                ),
-                state = if (isPlaying) PlaybackState.PLAY else PlaybackState.PAUSE,
-                modifier = Modifier
-                    .align(Alignment.Center),
+                type = controllerType,
+                actions = actions,
+                isPlaying = isPlaying,
+                modifier = Modifier.align(Alignment.Center),
                 tint = Color.White
             )
         }

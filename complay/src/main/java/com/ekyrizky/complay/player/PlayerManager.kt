@@ -42,7 +42,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @UnstableApi
-class PlayerManager private constructor(
+internal class PlayerManager private constructor(
     private val context: Context,
     private val config: PlayerConfig,
     private val analytics: PlayerAnalytics? = null
@@ -132,11 +132,13 @@ class PlayerManager private constructor(
             }
     }
 
-    fun handleEvent(event: PlayerEvent) {
+    fun onEvent(event: PlayerEvent) {
         when (event) {
             is PlayerEvent.Play -> play()
             is PlayerEvent.Pause -> pause()
             is PlayerEvent.SeekTo -> seekTo(event.position)
+            is PlayerEvent.SeekForward -> seekForward(event.seconds)
+            is PlayerEvent.SeekBackward -> seekBackward(event.seconds)
             is PlayerEvent.SetVolume -> setVolume(event.volume)
             is PlayerEvent.PrepareVideo -> prepareVideo(event.video)
             is PlayerEvent.Release -> release()
@@ -189,19 +191,40 @@ class PlayerManager private constructor(
         return builder.build()
     }
 
-    fun play() {
+    private fun play() {
+        Log.e("log__","play")
         exoPlayer?.play()
     }
 
-    fun pause() {
+    private fun pause() {
+        Log.e("log__","pause")
         exoPlayer?.pause()
     }
 
-    fun seekTo(position: Long) {
+    private fun seekTo(position: Long) {
         exoPlayer?.seekTo(position.coerceAtLeast(0))
     }
 
-    fun setVolume(volume: Float) {
+    private fun seekForward(seconds: Long) {
+        exoPlayer?.let { player ->
+            val currentPosition = player.currentPosition
+            val targetPosition = (currentPosition + seconds * 1000L)
+                .coerceAtMost(getDuration())
+            seekTo(targetPosition)
+        }
+    }
+
+    private fun seekBackward(seconds: Long) {
+        exoPlayer?.let { player ->
+            val currentPosition = player.currentPosition
+            val targetPosition = (currentPosition - seconds * 1000L)
+                .coerceAtLeast(0L)
+            seekTo(targetPosition)
+        }
+    }
+
+
+    private fun setVolume(volume: Float) {
         exoPlayer?.volume = volume.coerceIn(0f, 1f)
     }
 
@@ -251,7 +274,7 @@ class PlayerManager private constructor(
         release()
     }
 
-    fun release() {
+    private fun release() {
         Log.d(TAG, "Releasing player")
         coroutineScope.cancel()
 
