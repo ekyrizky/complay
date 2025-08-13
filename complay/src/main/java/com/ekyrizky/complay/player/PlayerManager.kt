@@ -2,7 +2,6 @@ package com.ekyrizky.complay.player
 
 import android.content.Context
 import android.os.Bundle
-import android.os.PowerManager
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -13,10 +12,12 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.TrackGroupArray
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.ekyrizky.complay.model.PlaybackState
 import com.ekyrizky.complay.model.PlayerAnalytics
@@ -32,11 +33,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -71,26 +69,9 @@ internal class PlayerManager private constructor(
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
 
-    val isPlaying: StateFlow<Boolean> = _playerState.map { it.isPlaying }.stateIn(
-        scope = coroutineScope,
-        started = SharingStarted.WhileSubscribed(),
-        initialValue = false
-    )
-
-    val currentPosition: StateFlow<Long> = playerState.map { it.currentPosition }.stateIn(
-        scope = coroutineScope,
-        started = SharingStarted.WhileSubscribed(),
-        initialValue = 0L
-    )
-
-    val duration: StateFlow<Long> = _playerState.map { it.duration }.stateIn(
-        scope = coroutineScope,
-        started = SharingStarted.WhileSubscribed(),
-        initialValue = 0L
-    )
-
     private var positionUpdateJob: Job? = null
     private var currentVideo: Video? = null
+    private var resumeOnForeground: Boolean = false
 
     private fun getOrCreatePlayer(): ExoPlayer {
         return exoPlayer ?: createExoPlayer()
@@ -98,8 +79,6 @@ internal class PlayerManager private constructor(
 
     private val renderersFactory: DefaultRenderersFactory =
         DefaultRenderersFactory(context).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-
-    private var wakeLock: PowerManager.WakeLock? = null
 
     fun createExoPlayer(): ExoPlayer {
         if (exoPlayer != null) return exoPlayer!!
@@ -139,13 +118,15 @@ internal class PlayerManager private constructor(
             is PlayerEvent.SeekTo -> seekTo(event.position)
             is PlayerEvent.SeekForward -> seekForward(event.seconds)
             is PlayerEvent.SeekBackward -> seekBackward(event.seconds)
+            is PlayerEvent.SkipNext -> skipNext()
+            is PlayerEvent.SkipPrevious -> skipPrevious()
             is PlayerEvent.SetVolume -> setVolume(event.volume)
             is PlayerEvent.PrepareVideo -> prepareVideo(event.video)
             is PlayerEvent.Release -> release()
         }
     }
 
-    fun prepareVideo(video: Video) {
+    private fun prepareVideo(video: Video) {
         Log.d(TAG, "Preparing video: ${video.url}")
 
         try {
@@ -154,12 +135,25 @@ internal class PlayerManager private constructor(
 
             val mediaItem = createMediaItem(video)
             val player = getOrCreatePlayer()
-            player.apply {
-                setMediaItem(mediaItem)
-                prepare()
+
+            val httpFactory = DefaultHttpDataSource.Factory().apply {
+                if (video.headers.isNotEmpty()) {
+                    setDefaultRequestProperties(video.headers)
+                }
             }
 
-            analytics?.onVideoStarted(video)
+            val mediaSource = if (video.url.endsWith(".mpd", ignoreCase = true)) {
+                DashMediaSource.Factory(httpFactory).createMediaSource(mediaItem)
+            } else {
+                ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem)
+            }
+
+            player.setMediaSource(mediaSource)
+            player.prepare()
+
+            if (config.enableAnalytics) {
+                analytics?.onVideoStarted(video)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error preparing video", e)
             handleError(PlayerError(-1, "Failed to prepare video", e))
@@ -180,7 +174,7 @@ internal class PlayerManager private constructor(
             )
         }
 
-        if (video.isDrmProtected && video.licenseUrl.isNotEmpty()) {
+        if (config.enableDrmSupport && video.isDrmProtected && video.licenseUrl.isNotEmpty()) {
             val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                 .setLicenseUri(video.licenseUrl)
                 .setMultiSession(true)
@@ -192,12 +186,10 @@ internal class PlayerManager private constructor(
     }
 
     private fun play() {
-        Log.e("log__","play")
         exoPlayer?.play()
     }
 
     private fun pause() {
-        Log.e("log__","pause")
         exoPlayer?.pause()
     }
 
@@ -223,6 +215,8 @@ internal class PlayerManager private constructor(
         }
     }
 
+    private fun skipNext() {}
+    private fun skipPrevious() {}
 
     private fun setVolume(volume: Float) {
         exoPlayer?.volume = volume.coerceIn(0f, 1f)
@@ -235,18 +229,15 @@ internal class PlayerManager private constructor(
         return exoPlayer?.currentTracks
     }
 
-    fun getTrackGroups(): TrackGroupArray? {
-        return exoPlayer?.currentTrackGroups
-    }
-
     fun selectTrack(trackType: Int, groupIndex: Int, trackIndex: Int) {
         val selector = trackSelector ?: return
         val player = exoPlayer ?: return
-        val groups = player.currentTrackGroups
-        if (groupIndex < 0 || groupIndex >= groups.length) return
-        val group = groups.get(groupIndex)
-        if (trackIndex < 0 || trackIndex >= group.length) return
-        val override = TrackSelectionOverride(group, listOf(trackIndex))
+        val matchingGroups = player.currentTracks.groups.filter { it.type == trackType }
+        if (groupIndex < 0 || groupIndex >= matchingGroups.size) return
+        val group = matchingGroups[groupIndex]
+        val trackCount = group.length
+        if (trackIndex < 0 || trackIndex >= trackCount) return
+        val override = TrackSelectionOverride(group.mediaTrackGroup, listOf(trackIndex))
         val params = selector.parameters
             .buildUpon()
             .clearOverridesOfType(trackType)
@@ -265,9 +256,15 @@ internal class PlayerManager private constructor(
     }
 
     override fun onPause(owner: LifecycleOwner) {
-        if (_playerState.value.isPlaying) {
-            pause()
+        resumeOnForeground = _playerState.value.isPlaying
+        if (resumeOnForeground) pause()
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        if (resumeOnForeground) {
+            play()
         }
+        resumeOnForeground = false
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
@@ -278,7 +275,6 @@ internal class PlayerManager private constructor(
         Log.d(TAG, "Releasing player")
         coroutineScope.cancel()
 
-        releaseWakeLock()
         stopPositionUpdates()
 
         exoPlayer?.let { player ->
@@ -318,21 +314,9 @@ internal class PlayerManager private constructor(
     private fun handleError(error: PlayerError) {
         Log.e(TAG, "Player error: ${error.message}", error.cause)
         updateState { currentState -> currentState.copy(error = error, isLoading = false) }
-        analytics?.onError(error)
-    }
-
-    private fun acquireWakeLock() {
-        if (wakeLock?.isHeld == true) return
-
-        wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager).run {
-            newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Complay:WakeLock")
+        if (config.enableAnalytics) {
+            analytics?.onError(error)
         }
-        wakeLock?.acquire()
-    }
-
-    private fun releaseWakeLock() {
-        wakeLock?.release()
-        wakeLock = null
     }
 
     private val playerListener = object : Player.Listener {
@@ -340,10 +324,8 @@ internal class PlayerManager private constructor(
             updateState { currentState -> currentState.copy(isPlaying = isPlaying) }
 
             if (isPlaying) {
-                acquireWakeLock()
                 startPositionUpdates()
             } else {
-                releaseWakeLock()
                 stopPositionUpdates()
             }
         }
@@ -372,10 +354,14 @@ internal class PlayerManager private constructor(
             }
 
             if (playbackState == Player.STATE_BUFFERING) {
-                analytics?.onBuffering(getCurrentPosition())
+                if (config.enableAnalytics) {
+                    analytics?.onBuffering(getCurrentPosition())
+                }
             } else if (playbackState == Player.STATE_ENDED) {
                 currentVideo?.let { video ->
-                    analytics?.onVideoCompleted(video, getCurrentPosition())
+                    if (config.enableAnalytics) {
+                        analytics?.onVideoCompleted(video, getCurrentPosition())
+                    }
                 }
             }
         }

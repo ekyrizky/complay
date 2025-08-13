@@ -5,11 +5,14 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.ekyrizky.complay.model.PlayerEvent
 import com.ekyrizky.complay.model.Video
 import com.ekyrizky.complay.player.PlayerManager
 
@@ -23,10 +26,11 @@ internal fun ComplayPlayerView(
 ) {
 
     val exoPlayer = remember { playerManager.createExoPlayer() }
+    val playerState by playerManager.playerState.collectAsState()
 
     LaunchedEffect(video.id) {
         Log.d("ComplayPlayerView", "Preparing video: ${video.id}")
-        playerManager.prepareVideo(video)
+        playerManager.onEvent(PlayerEvent.PrepareVideo(video))
         onPlayerReady(playerManager)
     }
 
@@ -37,6 +41,9 @@ internal fun ComplayPlayerView(
                 useController = false
                 player = exoPlayer
             }
+        },
+        update = { view ->
+            view.keepScreenOn = playerState.isPlaying
         }
     )
 }

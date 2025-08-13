@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,8 +25,7 @@ internal fun ComplayHOverlay(
     controllerType: PlayerControllerType = PlayerControllerType.STANDARD,
 ) {
 
-    val isPlaying by playerManager?.isPlaying?.collectAsState(initial = false)
-        ?: remember { mutableStateOf(false) }
+    val isPlaying = playerManager?.playerState?.collectAsState()?.value?.isPlaying ?: false
 
     Box(
         modifier = modifier
@@ -55,8 +51,8 @@ internal fun ComplayHOverlay(
                 PlayerControllerType.SKIP -> PlayerControllerActions.SkipActions(
                     onPlay = { onEvent(PlayerEvent.Play) },
                     onPause = { onEvent(PlayerEvent.Pause) },
-                    onSkipNext = { },
-                    onSkipPrevious = { }
+                    onSkipNext = { onEvent(PlayerEvent.SkipNext) },
+                    onSkipPrevious = { onEvent(PlayerEvent.SkipPrevious) }
                 )
             }
 

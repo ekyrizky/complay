@@ -26,8 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import com.ekyrizky.complay.model.PlaybackState
@@ -57,18 +55,9 @@ internal fun ComplayHScreen(
     val playerState by playerManager.playerState.collectAsState()
 
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> playerManager.onEvent(PlayerEvent.Pause)
-                Lifecycle.Event.ON_RESUME -> playerManager.onEvent(PlayerEvent.Play)
-                Lifecycle.Event.ON_DESTROY -> playerManager.onEvent(PlayerEvent.Release)
-                else -> {}
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
+        lifecycleOwner.lifecycle.addObserver(playerManager)
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+            lifecycleOwner.lifecycle.removeObserver(playerManager)
             playerManager.onEvent(PlayerEvent.Release)
         }
     }
