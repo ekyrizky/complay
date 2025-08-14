@@ -32,7 +32,9 @@ data class ComplayIcons(
     @DrawableRes val more: Int,
     @DrawableRes val share: Int,
     @DrawableRes val like: Int,
-    @DrawableRes val dislike: Int
+    @DrawableRes val dislike: Int,
+    @DrawableRes val lock: Int,
+    @DrawableRes val unlock: Int
 ) {
     companion object {
         @Composable
@@ -61,7 +63,9 @@ data class ComplayIcons(
             more = R.drawable.ic_more,
             share = R.drawable.ic_share,
             like = R.drawable.ic_like,
-            dislike = R.drawable.ic_dislike
+            dislike = R.drawable.ic_dislike,
+            lock = R.drawable.ic_lock,
+            unlock = R.drawable.ic_lock_open
         )
     }
 }

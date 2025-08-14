@@ -1,5 +1,8 @@
 package com.ekyrizky.complay.ui.horizontal
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -49,6 +54,8 @@ internal fun ComplayHScreen(
     val scope = rememberCoroutineScope()
 
     var overlayVisible by remember { mutableStateOf(true) }
+    var isFullscreen by remember { mutableStateOf(false) }
+    var isLocked by remember { mutableStateOf(false) }
     var hideJob by remember { mutableStateOf<Job?>(null) }
 
     val playerManager = remember { PlayerManager.create(context) }
@@ -71,10 +78,25 @@ internal fun ComplayHScreen(
         }
     }
 
+    val activity = context as? Activity
+
+    LaunchedEffect(isFullscreen) {
+        activity?.requestedOrientation = if (isFullscreen) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    val configuration = LocalConfiguration.current
+    LaunchedEffect(configuration.orientation) {
+        isFullscreen = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .then(if (isFullscreen) Modifier.fillMaxSize() else Modifier.aspectRatio(16f / 9f))
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
@@ -106,6 +128,10 @@ internal fun ComplayHScreen(
                     showOverlayWithTimeout()
                 },
                 modifier = Modifier.fillMaxSize(),
+                isFullscreen = isFullscreen,
+                onToggleFullscreen = { isFullscreen = !isFullscreen },
+                isLocked = isLocked,
+                onToggleLock = { isLocked = !isLocked }
             )
         }
 

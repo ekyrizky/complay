@@ -3,6 +3,7 @@ package com.ekyrizky.complay.designsystem.components.button
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,14 +29,16 @@ fun ComplayIconButton(
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
     iconSize: Dp = 24.dp,
-    buttonSize: Dp = 48.dp,
+    buttonSize: Dp = 24.dp,
     text: String? = null,
     textStyle: TextStyle = ComplayTheme.typography.labelMedium,
     textColor: Color = Color.Unspecified,
     textPadding: Dp = 2.dp
 ) {
     Column(
-        modifier = modifier.width(IntrinsicSize.Min),
+        modifier = modifier
+            .width(IntrinsicSize.Min)
+            .height(IntrinsicSize.Min),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         IconButton(

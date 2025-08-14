@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -40,8 +40,8 @@ fun ComplaySeekBar(
     onSeekChanged: ((Long) -> Unit)? = null,
     showTimeLabels: Boolean = true,
     thumbRadius: Dp = 8.dp,
-    touchHeight: Dp = 36.dp,
-    trackHeight: Dp = 3.dp,
+    touchHeight: Dp = 8.dp,
+    trackHeight: Dp = 4.dp,
     activeColor: Color = Color.White,
     inactiveColor: Color = Color.White.copy(alpha = 0.35f),
     textColor: Color = Color.White
@@ -61,12 +61,23 @@ fun ComplaySeekBar(
     val thumbRadiusPx = with(density) { thumbRadius.toPx() }
     val trackHeightPx = with(density) { trackHeight.toPx() }
 
-    Column(
-        modifier = modifier.fillMaxWidth()
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, alignment = Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        if (showTimeLabels) {
+            val leftTime = if (isDragging) (dragFraction * clampedDurationMs).toLong() else positionMs
+            Text(
+                text = leftTime.toTimeString(),
+                style = ComplayTheme.typography.labelMedium,
+                color = textColor
+            )
+        }
+
         Canvas(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .height(touchHeight)
                 .padding(horizontal = 0.dp)
                 .pointerInput(Unit) {
@@ -136,24 +147,11 @@ fun ComplaySeekBar(
         }
 
         if (showTimeLabels) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                val leftTime = if (isDragging) (dragFraction * clampedDurationMs).toLong() else positionMs
-                Text(
-                    text = leftTime.toTimeString(),
-                    style = ComplayTheme.typography.labelMedium,
-                    color = textColor
-                )
-                Text(
-                    text = durationMs.toTimeString(),
-                    style = ComplayTheme.typography.labelMedium,
-                    color = textColor
-                )
-            }
+            Text(
+                text = durationMs.toTimeString(),
+                style = ComplayTheme.typography.labelMedium,
+                color = textColor
+            )
         }
     }
 }
